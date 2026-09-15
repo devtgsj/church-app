@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>교회 통합 관리 시스템 (CMS)</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Noto Sans KR', sans-serif; }
+        body { display: flex; height: 100vh; overflow: hidden; background-color: #f4f6f9; }
+
+        /* 좌측 사이드바 */
+        #sidebar { width: 250px; background-color: #2c3e50; color: white; display: flex; flex-direction: column; transition: 0.3s; }
+        #sidebar.closed { width: 0; overflow: hidden; }
+        .logo { padding: 15px; font-size: 1.1rem; font-weight: bold; background: #1a252f; text-align: center; }
+        .menu-list { flex: 1; overflow-y: auto; padding: 10px 0; }
+
+        /* N-Depth 트리형 사이드바 스타일 */
+        .menu-tree { list-style: none; padding-left: 0; }
+        .menu-tree ul { list-style: none; padding-left: 15px; display: none; }
+        .menu-tree ul.open { display: block; }
+
+        .menu-item-row { 
+            padding: 10px 15px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            font-size: 0.88rem; 
+            color: #ecf0f1; 
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            user-select: none;
+            transition: background 0.2s;
+        }
+        .menu-item-row:hover { background-color: #34495e; color: #fff; }
+        .menu-item-row.folder { font-weight: bold; color: #3498db; background: #243342; }
+        .menu-item-row.folder:hover { background: #1f2c3a; }
+        .folder-icon { font-size: 0.75rem; transition: transform 0.2s; }
+        .folder-icon.open { transform: rotate(90deg); }
+
+        /* 메인 컨테이너 */
+        #main-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* 상단 공통 툴바 */
+        #toolbar { height: 45px; background: #ffffff; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 10px; gap: 4px; }
+        .tb-btn { padding: 5px 10px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 3px; font-size: 0.82rem; display: flex; align-items: center; gap: 4px; }
+        .tb-btn:hover:not(:disabled) { background: #eef2f5; border-color: #007bff; color: #007bff; }
+        .tb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .tb-divider { height: 20px; width: 1px; background: #ccc; margin: 0 4px; }
+
+        /* Multi Tab 바 */
+        #tab-bar { height: 35px; background: #e9ecef; border-bottom: 1px solid #ccc; display: flex; align-items: flex-end; padding-left: 5px; overflow-x: auto; }
+        .tab-item { padding: 6px 14px; background: #dee2e6; border: 1px solid #ccc; border-bottom: none; margin-right: 2px; border-radius: 4px 4px 0 0; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+        .tab-item.active { background: #fff; font-weight: bold; border-top: 2px solid #007bff; }
+        .tab-close { font-size: 0.75rem; color: #888; border-radius: 50%; padding: 0 4px; }
+        .tab-close:hover { background: #dc3545; color: #fff; }
+
+        /* 화면 본문 영역 */
+        #content-area { flex: 1; position: relative; overflow: hidden; background: #fff; }
+        .page-frame { width: 100%; height: 100%; display: none; padding: 15px; overflow-y: auto; }
+        .page-frame.active { display: block; }
+    </style>
+</head>
+<body>
+
+    <!-- 좌측 사이드바 -->
+    <div id="sidebar">
+        <div class="logo">교회 CMS</div>
+        <div class="menu-list" id="menu-container"></div>
+    </div>
+
+    <!-- 메인 영역 -->
+    <div id="main-container">
+        <!-- 공통 툴바 -->
+        <div id="toolbar">
+            <button class="tb-btn" onclick="toggleSidebar()">☰ 메뉴</button>
+            <div class="tb-divider"></div>
+            <button class="tb-btn" id="btn-search" onclick="triggerEvent('onSearch')">🔍 조회</button>
+            <button class="tb-btn" id="btn-new" onclick="triggerEvent('onNew')">📄 신규</button>
+            <button class="tb-btn" id="btn-save" onclick="triggerEvent('onSave')">💾 저장</button>
+            <button class="tb-btn" id="btn-delete" onclick="triggerEvent('onDelete')">🗑️ 삭제</button>
+            <div class="tb-divider"></div>
+            <button class="tb-btn" id="btn-addRow" onclick="triggerEvent('onAddRow')">➕ 행추가</button>
+            <button class="tb-btn" id="btn-delRow" onclick="triggerEvent('onDelRow')">➖ 행삭제</button>
+            <div class="tb-divider"></div>
+            <button class="tb-btn" id="btn-excel" onclick="triggerEvent('onExcel')">📊 엑셀</button>
+            <button class="tb-btn" id="btn-print" onclick="triggerEvent('onPrint')">🖨️ 프린트</button>
+            <div class="tb-divider"></div>
+            <button class="tb-btn" onclick="closeCurrentTab()" style="color: #dc3545;">❌ 화면닫기</button>
+        </div>
+
+        <!-- Multi Tab 바 -->
+        <div id="tab-bar"></div>
+
+        <!-- 화면 로딩 컨테이너 -->
+        <div id="content-area"></div>
+    </div>
+
+    <script>
+        let globalMenuData = [];
+        let openTabs = [];
+        window.currentTabId = null;
+        window.pageModules = {};
+
+        // 1. DB 메뉴 불러오기
+        async function loadDbMenus() {
+            try {
+                const res = await fetch('/api/menus');
+                const result = await res.json();
+                if (result.success && result.data) {
+                    globalMenuData = result.data;
+                    renderSidebarTree(globalMenuData);
+                }
+            } catch (err) {
+                console.error('메뉴 로드 실패:', err);
+                document.getElementById('menu-container').innerHTML = 
+                    `<div style="padding:15px; color:#e74c3c; font-size:0.8rem;">⚠️ DB 메뉴 연결 실패</div>`;
+            }
+        }
+
+        // 2. 무제한 N-Depth 트리 생성
+        function renderSidebarTree(menuList) {
+            const container = document.getElementById('menu-container');
+            let html = `
+                <div class="menu-item-row" onclick="openTab('DASHBOARD', '메인 대시보드', '/pages/dashboard.html')">
+                    <span>🏠 메인 대시보드</span>
+                </div>
+            `;
+            const rootItems = menuList.filter(m => !m.parent_id || m.parent_id === '0' || m.parent_id === '')
+                                      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+            
+            html += `<ul class="menu-tree open">${buildTreeHTML(rootItems, menuList)}</ul>`;
+            container.innerHTML = html;
+        }
+
+        function buildTreeHTML(nodes, allList) {
+            let html = '';
+            nodes.forEach(node => {
+                const children = allList.filter(m => String(m.parent_id) === String(node.menu_id))
+                                        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                
+                const isFolder = node.menu_type === 'FOLDER' || children.length > 0;
+
+                if (isFolder) {
+                    html += `
+                        <li>
+                            <div class="menu-item-row folder" onclick="toggleFolder(this)">
+                                <span>📁 ${node.menu_name}</span>
+                                <span class="folder-icon">▶</span>
+                            </div>
+                            <ul>${buildTreeHTML(children, allList)}</ul>
+                        </li>
+                    `;
+                } else {
+                    html += `
+                        <li>
+                            <div class="menu-item-row" onclick="onMenuClick('${node.menu_id}', '${node.menu_name}')">
+                                <span>📄 ${node.menu_name}</span>
+                            </div>
+                        </li>
+                    `;
+                }
+            });
+            return html;
+        }
+
+        function toggleFolder(element) {
+            const subUl = element.nextElementSibling;
+            const icon = element.querySelector('.folder-icon');
+            if (subUl) {
+                subUl.classList.toggle('open');
+                if (icon) icon.classList.toggle('open');
+            }
+        }
+
+        function getFullPath(menuId) {
+            let pathSegments = [];
+            let currentId = menuId;
+
+            while (currentId) {
+                const menuItem = globalMenuData.find(m => String(m.menu_id) === String(currentId));
+                if (!menuItem) break;
+                
+                if (menuItem.url_path && menuItem.url_path.trim() !== '') {
+                    let cleanPath = menuItem.url_path.trim().replace(/^\/|\/$/g, '').replace(/\.html$/, '');
+                    if (cleanPath) pathSegments.unshift(cleanPath);
+                }
+                currentId = menuItem.parent_id;
+            }
+            return '/pages/' + pathSegments.join('/') + '.html';
+        }
+
+        function onMenuClick(menuId, menuName) {
+            const fullUrl = getFullPath(menuId);
+            openTab(menuId, menuName, fullUrl);
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('closed');
+        }
+
+        // 3. 탭 생성 및 화면 로딩
+        async function openTab(menuId, menuName, urlPath) {
+            if (openTabs.find(t => t.id === menuId)) {
+                activateTab(menuId);
+                return;
+            }
+
+            openTabs.push({ id: menuId, name: menuName, url: urlPath });
+
+            const frame = document.createElement('div');
+            frame.id = `frame-${menuId}`;
+            frame.className = 'page-frame';
+            document.getElementById('content-area').appendChild(frame);
+
+            window.currentTabId = menuId; // 현재 active menu_id 설정
+
+            try {
+                const res = await fetch(urlPath);
+                if (!res.ok) throw new Error(`Status: ${res.status}`);
+                const htmlText = await res.text();
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                const scripts = Array.from(doc.querySelectorAll('script'));
+                scripts.forEach(s => s.remove());
+
+                frame.innerHTML = doc.body ? doc.body.innerHTML : htmlText;
+
+                // 스크립트 실행
+                scripts.forEach(script => {
+                    const newScript = document.createElement('script');
+                    if (script.src) {
+                        newScript.src = script.src;
+                    } else {
+                        newScript.textContent = script.textContent;
+                    }
+                    document.body.appendChild(newScript);
+                });
+
+            } catch (e) {
+                frame.innerHTML = `
+                    <div style="padding:20px; border:1px solid #f5c6cb; background:#f8d7da; color:#721c24; border-radius:5px;">
+                        <h3>⚠️ 화면 파일을 로드할 수 없습니다.</h3>
+                        <p style="margin-top:8px;">요청 경로: <b>${urlPath}</b></p>
+                    </div>
+                `;
+            }
+
+            renderTabs();
+            activateTab(menuId);
+        }
+
+        function activateTab(menuId) {
+            window.currentTabId = menuId;
+            document.querySelectorAll('.page-frame').forEach(f => f.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+
+            const targetFrame = document.getElementById(`frame-${menuId}`);
+            if (targetFrame) targetFrame.classList.add('active');
+
+            const targetTab = document.getElementById(`tab-${menuId}`);
+            if (targetTab) targetTab.classList.add('active');
+
+            if (window.pageModules[menuId] && typeof window.pageModules[menuId].initToolbar === 'function') {
+                window.pageModules[menuId].initToolbar();
+            } else {
+                resetToolbar();
+            }
+        }
+
+        function closeCurrentTab() {
+            if (!window.currentTabId || window.currentTabId === 'DASHBOARD') return;
+            closeTab(window.currentTabId);
+        }
+
+        function closeTab(menuId) {
+            openTabs = openTabs.filter(t => t.id !== menuId);
+            delete window.pageModules[menuId];
+
+            const frame = document.getElementById(`frame-${menuId}`);
+            if (frame) frame.remove();
+
+            renderTabs();
+
+            if (openTabs.length > 0) {
+                activateTab(openTabs[openTabs.length - 1].id);
+            } else {
+                openTab('DASHBOARD', '메인 대시보드', '/pages/dashboard.html');
+            }
+        }
+
+        function renderTabs() {
+            const tabBar = document.getElementById('tab-bar');
+            tabBar.innerHTML = openTabs.map(t => `
+                <div class="tab-item ${t.id === window.currentTabId ? 'active' : ''}" id="tab-${t.id}" onclick="activateTab('${t.id}')">
+                    ${t.name}
+                    ${t.id !== 'DASHBOARD' ? `<span class="tab-close" onclick="event.stopPropagation(); closeTab('${t.id}')">✕</span>` : ''}
+                </div>
+            `).join('');
+        }
+
+        // 공통 툴바 이벤트 트리거 핵심 수정 부분
+        function triggerEvent(funcName) {
+            const tabId = window.currentTabId;
+            if (tabId && window.pageModules[tabId] && typeof window.pageModules[tabId][funcName] === 'function') {
+                window.pageModules[tabId][funcName]();
+            } else {
+                console.log(`[${tabId}] 화면에 ${funcName} 기능이 구현되어 있지 않습니다.`);
+            }
+        }
+
+        function setToolbarState(stateConfig) {
+            const btnMap = {
+                search: 'btn-search', new: 'btn-new', save: 'btn-save',
+                delete: 'btn-delete', addRow: 'btn-addRow', delRow: 'btn-delRow',
+                excel: 'btn-excel', print: 'btn-print'
+            };
+
+            for (let key in btnMap) {
+                const btn = document.getElementById(btnMap[key]);
+                if (btn && stateConfig[key] !== undefined) {
+                    btn.disabled = !stateConfig[key];
+                }
+            }
+        }
+
+        function resetToolbar() {
+            setToolbarState({ search: true, new: true, save: true, delete: true, addRow: true, delRow: true, excel: true, print: true });
+        }
+
+        window.onload = () => {
+            loadDbMenus();
+            openTab('DASHBOARD', '메인 대시보드', '/pages/dashboard.html');
+        };
+    </script>
+</body>
+</html>

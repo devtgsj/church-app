@@ -1,13 +1,22 @@
+require('dotenv').config();
 const express = require('express');
+const path = require('path');
+
 const app = express();
-const PORT = 3000;
+const port = process.env.PORT || 3000;
 
-// 메인 페이지 접속 시 응답
-app.get('/', (req, res) => {
-  res.send('<h1>교회 관리 시스템 서버가 성공적으로 작동 중입니다!</h1>');
-});
+app.use(express.json());
+// public 폴더 내의 index.html 및 pages/system/... 하위 HTML/JS/CSS 자원을 모두 제공
+app.use(express.static(path.join(__dirname, 'public')));
 
-// 서버 실행
-app.listen(PORT, () => {
-  console.log(`서버가 실행되었습니다: http://localhost:${PORT}`);
+// 라우터 모듈 분리 연결
+const menuRouter = require('./routes/menu');
+const commonCodeRouter = require('./routes/common-code');
+
+app.use('/api/menus', menuRouter);
+app.use('/api/system', commonCodeRouter);
+
+
+app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
 });

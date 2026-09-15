@@ -1,0 +1,543 @@
+<div class="page-container" style="display: flex; flex-direction: column; gap: 10px; height: 100%; box-sizing: border-box;">
+    
+    <!-- 상단 서브 헤더 -->
+    <div style="background: #f8f9fa; padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.88rem; font-weight: bold; color: #333;">⚙️ 공통 코드 관리</span>
+        <button type="button" class="tb-btn" onclick="window.saveAllGrids()" style="background: #28a745; color: white; border: none; font-weight: bold; padding: 4px 12px; cursor: pointer; border-radius: 3px;">
+            💾 전체 저장 (Major + Minor)
+        </button>
+    </div>
+
+    <!-- 좌/우 그리드 영역 (스플리터 적용) -->
+    <div id="grid-splitter-container" style="display: flex; flex: 1; min-height: 0; position: relative; user-select: none;">
+        
+        <!-- Major Code Panel -->
+        <div id="panel-major" style="width: 50%; display: flex; flex-direction: column; border: 2px solid #007bff; border-radius: 4px; padding: 10px; background: #fff; box-sizing: border-box;" onclick="window.selectGrid('major')">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h4 style="margin: 0; color: #2c3e50; font-size: 0.9rem;">📌 대분류 코드 (Major)</h4>
+                <button type="button" class="tb-btn" onclick="event.stopPropagation(); window.addMajorRow();" style="font-size: 0.78rem; padding: 2px 8px;">+ Major 추가</button>
+            </div>
+            
+            <div style="flex: 1; overflow: auto; border: 1px solid #eee;">
+                <table id="major-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #e9ecef; position: sticky; top: 0; z-index: 1;">
+                            <th style="width: 40px; text-align: center; border-bottom: 1px solid #ccc; padding: 6px;">상태</th>
+                            <th style="width: 100px; border-bottom: 1px solid #ccc; padding: 6px;">Major 코드</th>
+                            <th style="width: 140px; border-bottom: 1px solid #ccc; padding: 6px;">Major 코드명</th>
+                            <th style="border-bottom: 1px solid #ccc; padding: 6px;">설명</th>
+                            <th style="width: 55px; text-align: center; border-bottom: 1px solid #ccc; padding: 6px;">사용</th>
+                        </tr>
+                    </thead>
+                    <tbody id="major-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Splitter Bar -->
+        <div id="splitter-bar" style="width: 8px; cursor: col-resize; background: #e9ecef; border: 1px solid #ced4da; margin: 0 2px; border-radius: 3px; display: flex; align-items: center; justify-content: center;">
+            <div style="width: 2px; height: 16px; background: #6c757d; border-radius: 1px;"></div>
+        </div>
+
+        <!-- Minor Code Panel -->
+        <div id="panel-minor" style="flex: 1; display: flex; flex-direction: column; border: 1px solid #ccc; border-radius: 4px; padding: 10px; background: #fff; box-sizing: border-box;" onclick="window.selectGrid('minor')">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h4 style="margin: 0; color: #2c3e50; font-size: 0.9rem;">📌 상세 코드 (Minor) <span id="selected-major-title" style="font-size:0.8rem; color:#007bff;"></span></h4>
+                <button type="button" class="tb-btn" onclick="event.stopPropagation(); window.addMinorRow();" style="font-size: 0.78rem; padding: 2px 8px;">+ Minor 추가</button>
+            </div>
+
+            <div style="flex: 1; overflow: auto; border: 1px solid #eee;">
+                <table id="minor-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: #e9ecef; position: sticky; top: 0; z-index: 1;">
+                            <th style="width: 40px; text-align: center; border-bottom: 1px solid #ccc; padding: 6px;">상태</th>
+                            <th style="width: 90px; border-bottom: 1px solid #ccc; padding: 6px;">Minor 코드</th>
+                            <th style="width: 130px; border-bottom: 1px solid #ccc; padding: 6px;">Minor 코드명</th>
+                            <th style="border-bottom: 1px solid #ccc; padding: 6px;">설명</th>
+                            <th style="width: 50px; text-align: center; border-bottom: 1px solid #ccc; padding: 6px;">정렬</th>
+                            <th style="width: 55px; text-align: center; border-bottom: 1px solid #ccc; padding: 6px;">사용</th>
+                        </tr>
+                    </thead>
+                    <tbody id="minor-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+    .page-container table td { border-bottom: 1px solid #eee; padding: 4px 6px; }
+    .page-container table tr.selected { background-color: #e2f0fe !important; }
+    .page-container input[type="text"], .page-container select, .page-container input[type="number"] {
+        width: 100%; border: 1px solid #ccc; border-radius: 3px; padding: 3px 5px; box-sizing: border-box; font-size: 0.82rem;
+    }
+    .status-tag { display: inline-block; padding: 1px 4px; font-size: 0.7rem; border-radius: 3px; font-weight: bold; min-width: 12px; text-align: center; }
+    .status-I { background: #d4edda; color: #155724; }
+    .status-U { background: #fff3cd; color: #856404; }
+    .status-D { background: #f8d7da; color: #721c24; }
+    #splitter-bar:hover { background: #007bff !important; }
+</style>
+
+<script>
+(function() {
+    window.activeGrid = 'major';
+    window.selectedMajorCode = null;
+
+    // 0. 스플리터 리사이즈 설정
+    const splitter = document.getElementById('splitter-bar');
+    const container = document.getElementById('grid-splitter-container');
+    const leftPanel = document.getElementById('panel-major');
+    let isDragging = false;
+
+    splitter.addEventListener('mousedown', () => { isDragging = true; document.body.style.cursor = 'col-resize'; });
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const rect = container.getBoundingClientRect();
+        let width = e.clientX - rect.left;
+        if (width < rect.width * 0.2) width = rect.width * 0.2;
+        if (width > rect.width * 0.8) width = rect.width * 0.8;
+        leftPanel.style.width = `${width}px`;
+    });
+    document.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; document.body.style.cursor = 'default'; } });
+
+    // 1. 공통 툴바 매핑
+    const commonCodeModule = {
+        initToolbar: function() {
+            if (typeof setToolbarState === 'function') {
+                setToolbarState({ search: true, new: true, save: true, delete: true, addRow: true, delRow: true, excel: true, print: false });
+            }
+        },
+        onSearch: function() { 
+            if (window.checkUnsavedChanges()) {
+                if (!confirm('저장되지 않은 변경사항이 있습니다. 무시하고 조회하시겠습니까?')) return;
+            }
+            window.fetchMajorCodes(); 
+        },
+        onSave: function() { window.saveAllGrids(); },
+        onAddRow: function() {
+            if (window.activeGrid === 'minor') window.addMinorRow();
+            else window.addMajorRow();
+        },
+        onDelRow: function() { window.deleteSelectedRow(); },
+        onDelete: function() { window.deleteSelectedRow(); }
+    };
+
+    window.pageModules = window.pageModules || {};
+    window.pageModules['SYS101'] = commonCodeModule;
+    if (window.currentTabId) window.pageModules[window.currentTabId] = commonCodeModule;
+
+    // 2. 미저장 변경사항 체크 헬퍼 (Dirty Check)
+    window.checkUnsavedChanges = function() {
+        const dirtyMajor = Array.from(document.querySelectorAll('#major-tbody tr')).some(tr => {
+            const status = tr.dataset.status;
+            return status === 'I' || status === 'U' || status === 'D';
+        });
+
+        const dirtyMinor = Array.from(document.querySelectorAll('#minor-tbody tr')).some(tr => {
+            const status = tr.dataset.status;
+            return status === 'I' || status === 'U' || status === 'D';
+        });
+
+        return dirtyMajor || dirtyMinor;
+    };
+
+    // 3. 활성화 그리드 선택
+    window.selectGrid = function(gridType) {
+        window.activeGrid = gridType;
+        document.getElementById('panel-major').style.border = gridType === 'major' ? '2px solid #007bff' : '1px solid #ccc';
+        document.getElementById('panel-minor').style.border = gridType === 'minor' ? '2px solid #007bff' : '1px solid #ccc';
+    };
+
+    // 4. 수정 상태(U) 감지
+    window.markUpdated = function(inputEl) {
+        const tr = inputEl.closest('tr');
+        if (tr && (!tr.dataset.status || tr.dataset.status === '')) {
+            tr.dataset.status = 'U';
+            const tag = tr.querySelector('.status-tag');
+            if (tag) {
+                tag.className = 'status-tag status-U';
+                tag.innerText = 'U';
+            }
+        }
+    };
+
+    // 5. Major 목록 조회
+    window.fetchMajorCodes = async function() {
+        try {
+            const res = await fetch('/api/system/major');
+            const result = await res.json();
+            const tbody = document.getElementById('major-tbody');
+            tbody.innerHTML = '';
+            window.selectedMajorCode = null;
+            document.getElementById('minor-tbody').innerHTML = '';
+            document.getElementById('selected-major-title').innerText = '';
+
+            if (result.success && result.data.length > 0) {
+                result.data.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.dataset.status = '';
+                    tr.onclick = () => window.selectMajorRow(tr, item.major_code);
+
+                    tr.innerHTML = `
+                        <td style="text-align:center;"><span class="status-tag"></span></td>
+                        <td><input type="text" class="input-major-code" value="${item.major_code}" readonly style="background:#f5f5f5;"></td>
+                        <td><input type="text" class="input-major-name" value="${item.major_name || ''}" onchange="window.markUpdated(this)"></td>
+                        <td><input type="text" class="input-remark" value="${item.remark || ''}" onchange="window.markUpdated(this)"></td>
+                        <td style="text-align:center;">
+                            <select class="input-use-yn" onchange="window.markUpdated(this)">
+                                <option value="Y" ${item.use_yn === 'Y' ? 'selected' : ''}>Y</option>
+                                <option value="N" ${item.use_yn === 'N' ? 'selected' : ''}>N</option>
+                            </select>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#888; padding:15px;">등록된 데이터가 없습니다.</td></tr>`;
+            }
+        } catch (err) {
+            console.error('Major 코드 조회 실패:', err);
+        }
+    };
+
+    // 6. Major 행 추가 (신규 추가 시 코드 입력 감지 이벤트 포함)
+    window.addMajorRow = function() {
+        window.selectGrid('major');
+        const tbody = document.getElementById('major-tbody');
+        const emptyTd = tbody.querySelector('td[colspan]');
+        if (emptyTd) tbody.innerHTML = '';
+
+        const tr = document.createElement('tr');
+        tr.dataset.status = 'I';
+
+        tr.innerHTML = `
+            <td style="text-align:center;"><span class="status-tag status-I">I</span></td>
+            <td><input type="text" class="input-major-code" placeholder="코드 입력" oninput="window.syncCurrentMajorCode(this)"></td>
+            <td><input type="text" class="input-major-name" placeholder="코드명 입력"></td>
+            <td><input type="text" class="input-remark" placeholder="설명 입력"></td>
+            <td style="text-align:center;">
+                <select class="input-use-yn">
+                    <option value="Y" selected>Y</option>
+                    <option value="N">N</option>
+                </select>
+            </td>
+        `;
+
+        tr.onclick = () => {
+            const codeInput = tr.querySelector('.input-major-code');
+            window.selectMajorRow(tr, codeInput ? codeInput.value.trim() : null, false);
+        };
+
+        tbody.appendChild(tr);
+
+        // 추가된 신규 행을 바로 선택 처리 (이때는 Dirty Check를 하지 않도록 skipCheck=false 전달)
+        window.selectMajorRow(tr, null, true);
+    };
+
+    // Major 신규 작성 시 입력하는 코드값을 실시간으로 window.selectedMajorCode에 동기화
+    window.syncCurrentMajorCode = function(inputEl) {
+        const val = inputEl.value.trim();
+        window.selectedMajorCode = val;
+        const titleSpan = document.getElementById('selected-major-title');
+        if (titleSpan) titleSpan.innerText = val ? `[선택(신규): ${val}]` : `(신규 작성 중)`;
+    };
+
+    // Minor 그리드의 미저장 변경사항만 정밀 체크하는 헬퍼
+    window.checkMinorUnsavedChanges = function() {
+        return Array.from(document.querySelectorAll('#minor-tbody tr')).some(tr => {
+            const status = tr.dataset.status;
+            return status === 'I' || status === 'U' || status === 'D';
+        });
+    };
+
+    // 7. Major 선택 및 변경사항 체크(Dirty Check)
+    // Major 선택 및 행 이동 처리
+    window.selectMajorRow = async function(tr, majorCode, skipCheck = false) {
+        // 이미 선택되어 있는 동일한 행을 클릭한 경우 반응 없음
+        if (tr.classList.contains('selected')) return;
+
+        // Minor 그리드에 작업 중인 변경사항(I, U, D)이 있을 때만 이동 확인을 요청합니다.
+        if (!skipCheck && window.checkMinorUnsavedChanges()) {
+            if (!confirm('작성/수정 중인 Minor 코드 변경사항이 있습니다.\n저장하지 않고 다른 Major 코드로 이동하시겠습니까?')) {
+                return;
+            }
+        }
+
+        // 선택 스타일 변경
+        document.querySelectorAll('#major-tbody tr').forEach(r => r.classList.remove('selected'));
+        tr.classList.add('selected');
+        
+        // 현재 행의 최신 코드값 반영 (신규 추가 행일 경우 input의 입력값을 가져옴)
+        const codeInput = tr.querySelector('.input-major-code');
+        const currentCode = (tr.dataset.status === 'I' && codeInput) ? codeInput.value.trim() : majorCode;
+        window.selectedMajorCode = currentCode;
+
+        const titleSpan = document.getElementById('selected-major-title');
+
+        // 신규 추가(I)된 Major 행을 클릭했을 때
+        if (tr.dataset.status === 'I') {
+            if (titleSpan) {
+                titleSpan.innerText = currentCode ? `[선택(신규): ${currentCode}]` : `(신규 작성 중)`;
+            }
+            // 아직 저장 전이므로 Minor 목록은 빈 상태로 초기화
+            document.getElementById('minor-tbody').innerHTML = '';
+        } 
+        // 기존 등록된 Major 행을 클릭했을 때
+        else {
+            if (titleSpan) titleSpan.innerText = `[선택: ${currentCode}]`;
+            await window.fetchMinorCodes(currentCode);
+        }
+    };
+
+    // window.selectMajorRow = async function(tr, majorCode, skipCheck = false) {
+    //     // 이미 선택된 동일한 행 클릭 시 동작 안 함
+    //     if (tr.classList.contains('selected')) return;
+
+    //     // 다른 Major 행으로 '이동'할 때만 미저장 체크 실행
+    //     if (!skipCheck && window.checkUnsavedChanges()) {
+    //         if (!confirm('저장되지 않은 변경사항(수정/추가/삭제)이 있습니다.\n저장하지 않고 이동하시겠습니까?')) {
+    //             return;
+    //         }
+    //     }
+
+    //     document.querySelectorAll('#major-tbody tr').forEach(r => r.classList.remove('selected'));
+    //     tr.classList.add('selected');
+    //     window.selectedMajorCode = majorCode;
+        
+    //     const titleSpan = document.getElementById('selected-major-title');
+        
+    //     if (tr.dataset.status === 'I') {
+    //         const codeInput = tr.querySelector('.input-major-code');
+    //         const currentVal = codeInput ? codeInput.value.trim() : '';
+    //         if (titleSpan) titleSpan.innerText = currentVal ? `[선택(신규): ${currentVal}]` : `(신규 작성 중)`;
+    //         document.getElementById('minor-tbody').innerHTML = ''; // 신규 Major 선택 시 Minor 초기화
+    //     } else {
+    //         if (titleSpan) titleSpan.innerText = `[선택: ${majorCode}]`;
+    //         await window.fetchMinorCodes(majorCode);
+    //     }
+    // };
+
+    // 8. Minor 목록 조회
+    window.fetchMinorCodes = async function(majorCode) {
+        try {
+            const res = await fetch(`/api/system/minor?major_code=${encodeURIComponent(majorCode)}`);
+            const result = await res.json();
+            const tbody = document.getElementById('minor-tbody');
+            tbody.innerHTML = '';
+
+            if (result.success && result.data.length > 0) {
+                result.data.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.dataset.status = '';
+                    tr.onclick = () => {
+                        document.querySelectorAll('#minor-tbody tr').forEach(r => r.classList.remove('selected'));
+                        tr.classList.add('selected');
+                    };
+
+                    tr.innerHTML = `
+                        <td style="text-align:center;"><span class="status-tag"></span></td>
+                        <td><input type="text" class="input-minor-code" value="${item.minor_code}" readonly style="background:#f5f5f5;"></td>
+                        <td><input type="text" class="input-minor-name" value="${item.minor_name || ''}" onchange="window.markUpdated(this)"></td>
+                        <td><input type="text" class="input-remark" value="${item.remark || ''}" onchange="window.markUpdated(this)"></td>
+                        <td><input type="number" class="input-sort-seq" value="${item.sort_seq || 10}" style="text-align:center;" onchange="window.markUpdated(this)"></td>
+                        <td style="text-align:center;">
+                            <select class="input-use-yn" onchange="window.markUpdated(this)">
+                                <option value="Y" ${item.use_yn === 'Y' ? 'selected' : ''}>Y</option>
+                                <option value="N" ${item.use_yn === 'N' ? 'selected' : ''}>N</option>
+                            </select>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#888; padding:15px;">등록된 Minor 코드가 없습니다.</td></tr>`;
+            }
+        } catch (err) {
+            console.error('Minor 코드 조회 실패:', err);
+        }
+    };
+
+    // 9. Minor 행 추가 (신규 Major 코드 입력 상태에서도 추가 지원)
+    window.addMinorRow = function() {
+        if (!window.selectedMajorCode) {
+            alert('Minor 코드를 추가할 Major 코드를 먼저 선택하거나 Major 코드를 입력해 주세요.');
+            return;
+        }
+
+        window.selectGrid('minor');
+        const tbody = document.getElementById('minor-tbody');
+        const emptyTd = tbody.querySelector('td[colspan]');
+        if (emptyTd) tbody.innerHTML = '';
+
+        const tr = document.createElement('tr');
+        tr.dataset.status = 'I';
+        tr.onclick = () => {
+            document.querySelectorAll('#minor-tbody tr').forEach(r => r.classList.remove('selected'));
+            tr.classList.add('selected');
+        };
+
+        tr.innerHTML = `
+            <td style="text-align:center;"><span class="status-tag status-I">I</span></td>
+            <td><input type="text" class="input-minor-code" placeholder="코드 입력"></td>
+            <td><input type="text" class="input-minor-name" placeholder="코드명 입력"></td>
+            <td><input type="text" class="input-remark" placeholder="설명 입력"></td>
+            <td><input type="number" class="input-sort-seq" value="10" style="text-align:center;"></td>
+            <td style="text-align:center;">
+                <select class="input-use-yn">
+                    <option value="Y" selected>Y</option>
+                    <option value="N">N</option>
+                </select>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    };
+
+    // 10. 선택 행 삭제 처리
+    window.deleteSelectedRow = function() {
+        const selector = window.activeGrid === 'major' ? '#major-tbody tr.selected' : '#minor-tbody tr.selected';
+        const tr = document.querySelector(selector);
+        
+        if (!tr) {
+            alert('삭제할 행을 선택해 주세요.');
+            return;
+        }
+
+        if (tr.dataset.status === 'I') {
+            tr.remove();
+        } else {
+            tr.dataset.status = 'D';
+            const tag = tr.querySelector('.status-tag');
+            if (tag) {
+                tag.className = 'status-tag status-D';
+                tag.innerText = 'D';
+            }
+            tr.style.opacity = '0.4';
+            tr.style.textDecoration = 'line-through';
+        }
+    };
+
+    // 11. 데이터 수집 헬퍼
+    function getGridSaveItems(tbodyId, gridType) {
+        const rows = document.querySelectorAll(`#${tbodyId} tr`);
+        const saveList = [];
+
+        for (const tr of rows) {
+            const status = tr.dataset.status;
+            if (!status || status === '') continue;
+
+            const remarkInput = tr.querySelector('.input-remark');
+            const remark = remarkInput ? remarkInput.value.trim() : '';
+
+            if (gridType === 'major') {
+                const codeInput = tr.querySelector('.input-major-code');
+                const nameInput = tr.querySelector('.input-major-name');
+                const useYnSelect = tr.querySelector('.input-use-yn');
+
+                const major_code = codeInput ? codeInput.value.trim() : '';
+                const major_name = nameInput ? nameInput.value.trim() : '';
+                const use_yn = useYnSelect ? useYnSelect.value : 'Y';
+
+                if ((status === 'I' || status === 'U') && !major_code) {
+                    alert('Major 코드를 입력해 주세요.');
+                    if (codeInput) codeInput.focus();
+                    return null;
+                }
+
+                saveList.push({ status, major_code, major_name, remark, use_yn });
+
+            } else if (gridType === 'minor') {
+                const codeInput = tr.querySelector('.input-minor-code');
+                const nameInput = tr.querySelector('.input-minor-name');
+                const seqInput = tr.querySelector('.input-sort-seq');
+                const useYnSelect = tr.querySelector('.input-use-yn');
+
+                const minor_code = codeInput ? codeInput.value.trim() : '';
+                const minor_name = nameInput ? nameInput.value.trim() : '';
+                const sort_seq = seqInput ? parseInt(seqInput.value) || 10 : 10;
+                const use_yn = useYnSelect ? useYnSelect.value : 'Y';
+
+                if ((status === 'I' || status === 'U') && !minor_code) {
+                    alert('Minor 코드를 입력해 주세요.');
+                    if (codeInput) codeInput.focus();
+                    return null;
+                }
+
+                saveList.push({
+                    status,
+                    major_code: window.selectedMajorCode,
+                    minor_code,
+                    minor_name,
+                    remark,
+                    sort_seq,
+                    use_yn
+                });
+            }
+        }
+        return saveList;
+    }
+
+    // 12. 전체 저장 함수 (Major + Minor 동시 저장 지원)
+    window.saveAllGrids = async function() {
+        const majorSaveList = getGridSaveItems('major-tbody', 'major');
+        if (majorSaveList === null) return;
+
+        const minorSaveList = getGridSaveItems('minor-tbody', 'minor');
+        if (minorSaveList === null) return;
+
+        const totalCount = majorSaveList.length + minorSaveList.length;
+
+        if (totalCount === 0) {
+            alert('저장할 변경 사항이 없습니다.');
+            return;
+        }
+
+        let confirmMsg = `총 ${totalCount}건의 변경 사항을 저장하시겠습니까?\n`;
+        if (majorSaveList.length > 0) confirmMsg += `- Major 코드: ${majorSaveList.length}건\n`;
+        if (minorSaveList.length > 0) confirmMsg += `- Minor 코드: ${minorSaveList.length}건\n`;
+
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            // Major 저장
+            if (majorSaveList.length > 0) {
+                const resMajor = await fetch('/api/system/major/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: majorSaveList })
+                });
+                const resultMajor = await resMajor.json();
+                if (!resultMajor.success) {
+                    alert('Major 저장 실패: ' + resultMajor.message);
+                    return;
+                }
+            }
+
+            // Minor 저장
+            if (minorSaveList.length > 0) {
+                const resMinor = await fetch('/api/system/minor/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: minorSaveList })
+                });
+                const resultMinor = await resMinor.json();
+                if (!resultMinor.success) {
+                    alert('Minor 저장 실패: ' + resultMinor.message);
+                    return;
+                }
+            }
+
+            alert('화면 전체 변경 사항이 성공적으로 저장되었습니다.');
+            window.fetchMajorCodes();
+
+        } catch (err) {
+            console.error(err);
+            alert('전체 저장 중 통신 오류가 발생했습니다.');
+        }
+    };
+
+    // 초기화
+    commonCodeModule.initToolbar();
+    window.fetchMajorCodes();
+})();
+</script>
